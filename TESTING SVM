@@ -1,0 +1,170 @@
+import tkinter as tk
+from tkinter import Frame, Label, Button, Toplevel
+import cv2
+from PIL import Image, ImageTk
+import mediapipe as mp
+import numpy as np
+import joblib
+import time
+
+# Load SVM model, scaler, and label encoder
+model = joblib.load('svm_sign_language_model.pkl')
+scaler = joblib.load('scaler.pkl')
+label_encoder = joblib.load('label_encoder.pkl')
+
+# Initialize MediaPipe and OpenCV
+mp_hands = mp.solutions.hands
+mp_drawing = mp.solutions.drawing_utils
+hands = mp_hands.Hands(min_detection_confidence=0.7)
+cap = cv2.VideoCapture(0)
+
+# Initialize Tkinter window
+root = tk.Tk()
+root.title("Sign Language Detection - SVM")
+root.geometry("1000x600")
+
+# Background Image
+image_path = r"C:\Users\Dell\Downloads\Brown.png"
+background_image = Image.open(image_path)
+background_image = background_image.resize((1000, 600), Image.Resampling.LANCZOS)
+background_photo = ImageTk.PhotoImage(background_image)
+
+recognized_text = ""
+current_character = ""
+accuracy = 0.0
+last_recognition_time = time.time()
+gesture_recognition_delay = 1.0
+
+def format_text(text, max_length=15, max_lines=10):
+    lines = text.split("\n")
+    if len(lines[-1]) > max_length:
+        new_line_parts = [lines[-1][i:i + max_length] for i in range(0, len(lines[-1]), max_length)]
+        lines = lines[:-1] + new_line_parts
+    if len(lines) > max_lines:
+        lines = lines[-max_lines:]
+    return "\n".join(lines)
+
+def process_frame(frame):
+    global recognized_text, current_character, accuracy, last_recognition_time
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = hands.process(frame_rgb)
+
+    if results.multi_hand_landmarks:
+        for landmarks in results.multi_hand_landmarks:
+            mp_drawing.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
+
+            x_ = [lm.x for lm in landmarks.landmark]
+            y_ = [lm.y for lm in landmarks.landmark]
+            data_aux = [(lm.x - min(x_), lm.y - min(y_)) for lm in landmarks.landmark]
+            data_aux = np.array(data_aux).flatten().reshape(1, -1)
+
+            if data_aux.shape[1] < 84:
+                data_aux = np.pad(data_aux, ((0, 0), (0, 84 - data_aux.shape[1])), 'constant')
+            elif data_aux.shape[1] > 84:
+                data_aux = data_aux[:, :84]
+
+            scaled_input = scaler.transform(data_aux)
+
+            if time.time() - last_recognition_time > gesture_recognition_delay:
+                prediction = model.predict(scaled_input)
+                proba = model.decision_function(scaled_input)
+                proba_softmax = np.exp(proba) / np.sum(np.exp(proba))  # Softmax for confidence
+                accuracy = np.max(proba_softmax)
+                current_character = label_encoder.inverse_transform(prediction)[0]
+
+                if accuracy > 0.5:
+                    recognized_text += current_character
+                    recognized_text = format_text(recognized_text)
+                    output_label.config(text=recognized_text)
+                    last_recognition_time = time.time()
+
+def update_video_feed():
+    ret, frame = cap.read()
+    if ret:
+        frame = cv2.flip(frame, 1)
+        process_frame(frame)
+
+        cv2.putText(frame, f'Character: {current_character}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(frame, f'Accuracy: {accuracy:.2f}', (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+        img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        imgtk = ImageTk.PhotoImage(image=img)
+        video_label.imgtk = imgtk
+        video_label.configure(image=imgtk)
+
+    output_label.config(text=recognized_text)
+    main_frame.after(10, update_video_feed)
+
+def open_help_window():
+    help_window = Toplevel(root)
+    help_window.title("Help")
+    help_window.geometry("400x300")
+
+    help_text = """This application detects sign language gestures using an SVM model.
+
+Instructions:
+1. Make sign language gestures in front of the camera.
+2. Characters will appear on the right.
+3. Reset to clear text, Backspace to delete last character.
+4. Click Help to see gestures, or Exit to quit."""
+    
+    Label(help_window, text=help_text, justify="left", padx=10, pady=10, wraplength=380).pack()
+
+def start_app():
+    start_frame.pack_forget()
+    main_frame.pack(fill="both", expand=True)
+    update_video_feed()
+
+def exit_app():
+    cap.release()
+    root.quit()
+
+def reset_text():
+    global recognized_text
+    recognized_text = ""
+    output_label.config(text=format_text(recognized_text))
+
+def backspace_text():
+    global recognized_text
+    recognized_text = recognized_text[:-1]
+    output_label.config(text=format_text(recognized_text))
+
+def open_image_window():
+    image_window = Toplevel(root)
+    image_window.title("Image Window")
+    image_window.geometry("600x400")   
+    image_path = r"C:\Users\Dell\Downloads\ASL_Alphabet.jpg"
+    image = Image.open(image_path)
+    image = image.resize((500, 300), Image.Resampling.LANCZOS)
+    image_photo = ImageTk.PhotoImage(image)
+    image_label = Label(image_window, image=image_photo)
+    image_label.image = image_photo
+    image_label.pack(fill="both", expand=True)
+
+# Start Frame
+start_frame = Frame(root)
+start_frame.pack(fill="both", expand=True)
+background_label = Label(start_frame, image=background_photo)
+background_label.place(relwidth=1, relheight=1)
+Button(start_frame, text="Start", font=("Arial", 18, "bold"), bg="yellow", fg="black", command=start_app).place(relx=0.73, rely=0.6, anchor="center")
+
+# Main Frame
+main_frame = Frame(root)
+video_label = Label(main_frame)
+video_label.pack(side="left", padx=10, pady=10)
+
+output_frame = Frame(main_frame)
+output_frame.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+Label(output_frame, text="OUTPUT", fg="black", font=("Arial", 18, "bold")).pack()
+output_label = Label(output_frame, text="", font=("Arial", 24), bg="white", width=20, height=5, relief="solid", bd=2)
+output_label.pack(pady=10)
+
+control_frame = Frame(output_frame)
+control_frame.pack(fill="x", pady=10)
+Button(control_frame, text="Instruction", bg="yellow", fg="black", command=open_help_window).grid(row=0, column=0, padx=5, pady=5)
+Button(control_frame, text="Reset", bg="yellow", fg="black", command=reset_text).grid(row=0, column=1, padx=5, pady=5)
+Button(control_frame, text="Backspace", bg="yellow", fg="black", command=backspace_text).grid(row=0, column=2, padx=5, pady=5)
+Button(control_frame, text="Exit", bg="yellow", fg="black", command=exit_app).grid(row=0, column=3, padx=5, pady=5)
+Button(control_frame, text="Help", bg="yellow", fg="black", command=open_image_window).grid(row=0, column=4, padx=5, pady=5)
+
+root.mainloop()
