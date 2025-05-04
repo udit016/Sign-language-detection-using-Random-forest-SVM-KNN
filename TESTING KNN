@@ -1,0 +1,186 @@
+# --- Same imports ---
+import tkinter as tk
+from tkinter import Frame, Label, Button, Toplevel
+import cv2
+from PIL import Image, ImageTk
+import mediapipe as mp
+import numpy as np
+import pickle
+import time
+
+# --- Load the trained KNN model ---
+with open('knn_model.pickle', 'rb') as f:
+    model_dict = pickle.load(f)
+knn_model = model_dict['model']
+label_encoder = model_dict['label_encoder']
+
+
+# --- Initialize MediaPipe and OpenCV ---
+mp_hands = mp.solutions.hands
+mp_drawing = mp.solutions.drawing_utils
+hands = mp_hands.Hands(min_detection_confidence=0.7)
+cap = cv2.VideoCapture(0)
+
+# --- Initialize Tkinter GUI ---
+root = tk.Tk()
+root.title("Sign Language Detection - KNN Version")
+root.geometry("1000x600")
+
+# --- Load background image ---
+image_path = r"C:\Users\Dell\Downloads\Brown.png"
+background_image = Image.open(image_path)
+background_image = background_image.resize((1000, 600), Image.Resampling.LANCZOS)
+background_photo = ImageTk.PhotoImage(background_image)
+
+recognized_text = ""
+current_character = ""
+accuracy = 0.0
+last_recognition_time = time.time()
+gesture_recognition_delay = 1.0
+
+# --- Text formatting function ---
+def format_text(text, max_length=15, max_lines=10):
+    lines = text.split("\n")
+    if len(lines[-1]) > max_length:
+        new_line_parts = [lines[-1][i:i + max_length] for i in range(0, len(lines[-1]), max_length)]
+        lines = lines[:-1] + new_line_parts
+    if len(lines) > max_lines:
+        lines = lines[-max_lines:]
+    return "\n".join(lines)
+
+# --- Frame Processing Function ---
+# --- Frame Processing Function ---
+def process_frame(frame):
+    global recognized_text, current_character, accuracy, last_recognition_time
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = hands.process(frame_rgb)
+
+    if results.multi_hand_landmarks:
+        for landmarks in results.multi_hand_landmarks:
+            mp_drawing.draw_landmarks(frame, landmarks, mp_hands.HAND_CONNECTIONS)
+            data_aux = []
+            x_ = [lm.x for lm in landmarks.landmark]
+            y_ = [lm.y for lm in landmarks.landmark]
+            for landmark in landmarks.landmark:
+                data_aux.append(landmark.x - min(x_))
+                data_aux.append(landmark.y - min(y_))
+            data_aux = np.array(data_aux).reshape(1, -1)
+
+            if data_aux.shape[1] < 84:
+                data_aux = np.pad(data_aux, ((0, 0), (0, 84 - data_aux.shape[1])), 'constant')
+            elif data_aux.shape[1] > 84:
+                data_aux = data_aux[:, :84]
+
+            if time.time() - last_recognition_time > gesture_recognition_delay:
+                prediction = knn_model.predict(data_aux)
+                neighbors = knn_model.kneighbors(data_aux, return_distance=False)
+                # Estimate accuracy as percentage of majority label among neighbors
+                neighbor_labels = [knn_model._y[i] for i in neighbors[0]]
+                # Confidence will be the proportion of neighbors agreeing with the prediction
+                confidence = neighbor_labels.count(prediction[0]) / len(neighbor_labels)
+
+                current_character = label_encoder.inverse_transform(prediction)[0]
+                if confidence > 0.5:  # You can set the threshold based on your needs
+                    recognized_text += current_character
+                    recognized_text = format_text(recognized_text)
+                    output_label.config(text=recognized_text)
+                    last_recognition_time = time.time()
+
+                # Show confidence as a decimal (e.g., 0.80 instead of 80%)
+                accuracy = confidence
+
+# --- Video Feed Updater ---
+def update_video_feed():
+    ret, frame = cap.read()
+    if ret:
+        frame = cv2.flip(frame, 1)
+        process_frame(frame)
+        # Show character and accuracy as a decimal
+        cv2.putText(frame, f'Character: {current_character}', (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(frame, f'Confidence: {accuracy:.2f}', (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        imgtk = ImageTk.PhotoImage(image=img)
+        video_label.imgtk = imgtk
+        video_label.configure(image=imgtk)
+    output_label.config(text=recognized_text)
+    main_frame.after(10, update_video_feed)
+
+
+
+# --- Help window ---
+def open_help_window():
+    help_window = Toplevel(root)
+    help_window.title("Help")
+    help_window.geometry("400x300")
+    help_text = """This application detects sign language gestures using a KNN model.
+
+Instructions:
+1. Start the application to begin video feed.
+2. Make your sign language gestures in front of the camera.
+3. The recognized characters will be displayed on the right side.
+4. Use the Reset button to clear the recognized text.
+5. Use the Backspace button to remove the last character.
+6. Click Exit to close the application.
+7. Click on 'Help' button to view signs.
+"""
+    Label(help_window, text=help_text, justify="left", padx=10, pady=10, wraplength=380).pack()
+
+# --- Button functions ---
+def start_app():
+    start_frame.pack_forget()
+    main_frame.pack(fill="both", expand=True)
+    update_video_feed()
+
+def exit_app():
+    cap.release()
+    root.quit()
+
+def reset_text():
+    global recognized_text
+    recognized_text = ""
+    output_label.config(text=format_text(recognized_text))
+
+def backspace_text():
+    global recognized_text
+    recognized_text = recognized_text[:-1]
+    output_label.config(text=format_text(recognized_text))
+
+def open_image_window():
+    image_window = Toplevel(root)
+    image_window.title("Image Window")
+    image_window.geometry("600x400")
+    image_path = r"C:\Users\Dell\Downloads\ASL_Alphabet.jpg"
+    image = Image.open(image_path)
+    image = image.resize((500, 300), Image.Resampling.LANCZOS)
+    image_photo = ImageTk.PhotoImage(image)
+    image_label = Label(image_window, image=image_photo)
+    image_label.image = image_photo
+    image_label.pack(fill="both", expand=True)
+
+# --- Start frame ---
+start_frame = Frame(root)
+start_frame.pack(fill="both", expand=True)
+background_label = Label(start_frame, image=background_photo)
+background_label.place(relwidth=1, relheight=1)
+Button(start_frame, text="Start", font=("Arial", 18, "bold"), bg="yellow", fg="black", command=start_app).place(relx=0.73, rely=0.6, anchor="center")
+
+# --- Main GUI frame ---
+main_frame = Frame(root)
+video_label = Label(main_frame)
+video_label.pack(side="left", padx=10, pady=10)
+
+output_frame = Frame(main_frame)
+output_frame.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+Label(output_frame, text="OUTPUT", fg="black", font=("Arial", 18, "bold")).pack()
+output_label = Label(output_frame, text="", font=("Arial", 24), bg="white", width=20, height=5, relief="solid", bd=2)
+output_label.pack(pady=10)
+
+control_frame = Frame(output_frame)
+control_frame.pack(fill="x", pady=10)
+Button(control_frame, text="Instruction", bg="yellow", fg="black", command=open_help_window).grid(row=0, column=0, padx=5, pady=5)
+Button(control_frame, text="Reset", bg="yellow", fg="black", command=reset_text).grid(row=0, column=1, padx=5, pady=5)
+Button(control_frame, text="Backspace", bg="yellow", fg="black", command=backspace_text).grid(row=0, column=2, padx=5, pady=5)
+Button(control_frame, text="Exit", bg="yellow", fg="black", command=exit_app).grid(row=0, column=3, padx=5, pady=5)
+Button(control_frame, text="Help", bg="yellow", fg="black", command=open_image_window).grid(row=0, column=4, padx=5, pady=5)
+
+root.mainloop()
