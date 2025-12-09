@@ -10,14 +10,21 @@ Experimental tests prove the strength and performance differences of these model
 3. Model Training: KNN, Random Forest, and SVM classifiers were trained on the extracted features. The dataset was split using an 80% training / 20% testing ratio for model evaluation.
 
 4. Testing: Real-time testing was conducted with three participants performing gestures (A-L) for both the right and left hands across all three lighting conditions. Performance was measured by average confidence scores and overall accuracy
-   4.1 <img width="1202" height="764" alt="image" src="https://github.com/user-attachments/assets/785ed4b1-1224-47a4-8332-d656719b3f8f" />Asl sign for Alphabet A for KNN Model in Moderate lighting
-   4.2 <img width="1222" height="774" alt="image" src="https://github.com/user-attachments/assets/c5e63b0f-e4cd-4a8c-9aa8-38681d25857d" />Asl sign for Alphabet C for SVM Model in Moderate lighting
-   4.3 <img width="1198" height="747" alt="image" src="https://github.com/user-attachments/assets/daf30dd5-a260-4a9f-a3db-650824137871" />Asl sign for Alphabet D for Random Forest Model in Moderate lighting 
+   4.1 <img width="1202" height="764" alt="image" src="https://github.com/user-attachments/assets/785ed4b1-1224-47a4-8332-d656719b3f8f" />
+   Asl sign for Alphabet A for KNN Model in Moderate lighting
+   4.2 <img width="1222" height="774" alt="image" src="https://github.com/user-attachments/assets/c5e63b0f-e4cd-4a8c-9aa8-38681d25857d" />
+   Asl sign for Alphabet C for SVM Model in Moderate lighting
+   4.3 <img width="1198" height="747" alt="image" src="https://github.com/user-attachments/assets/daf30dd5-a260-4a9f-a3db-650824137871" />
+   Asl sign for Alphabet D for Random Forest Model in Moderate lighting 
 
 5. Results
- <img width="450" height="277" alt="image" src="https://github.com/user-attachments/assets/a8c2c971-4ada-42ca-8d13-41442ab1b3dc" /> Result table under Dark conditions
-<img width="865" height="621" alt="image" src="https://github.com/user-attachments/assets/27a7b020-74ed-444d-b235-0ce6102dfe96" />Result table under Sunlight conditions
-<img width="865" height="640" alt="image" src="https://github.com/user-attachments/assets/cfeee60d-36ff-473d-8436-927602047560" />Result table under Moderate conditions
+   
+<img width="450" height="277" alt="image" src="https://github.com/user-attachments/assets/a8c2c971-4ada-42ca-8d13-41442ab1b3dc" />
+Result table under Dark conditions
+<img width="865" height="621" alt="image" src="https://github.com/user-attachments/assets/27a7b020-74ed-444d-b235-0ce6102dfe96" />
+Result table under Sunlight conditions
+<img width="865" height="640" alt="image" src="https://github.com/user-attachments/assets/cfeee60d-36ff-473d-8436-927602047560" />
+Result table under Moderate conditions
 
 6. Overall Model Accuracy
    <img width="864" height="247" alt="image" src="https://github.com/user-attachments/assets/f6d2d916-d827-4534-92e6-455a6ef666ec" />
